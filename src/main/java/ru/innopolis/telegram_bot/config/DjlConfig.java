@@ -1,5 +1,6 @@
 package ru.innopolis.telegram_bot.config;
 
+import ai.djl.Application.CV;
 import ai.djl.modality.cv.BufferedImageFactory;
 import ai.djl.modality.cv.Image;
 import ai.djl.modality.cv.Image.Flag;
@@ -21,7 +22,9 @@ public class DjlConfig {
     @Bean
     public ZooModel<Image, Image> animeModel() throws Exception {
         Criteria<Image, Image> criteria =
-                Criteria.builder().setTypes(Image.class, Image.class)
+                Criteria.builder().optApplication(CV.ANY)
+                        .setTypes(Image.class, Image.class)
+                        .optModelUrls("")
                         .optTranslator(new AnimeTranslator())
                         .build();
         return ModelZoo.loadModel(criteria);
@@ -36,12 +39,9 @@ public class DjlConfig {
         }
 
         @Override
-        public NDList processInput(TranslatorContext translatorContext, Image bufferedImage) {
-            NDArray array =
-                    new BufferedImageFactory().fromImage(bufferedImage).toNDArray(translatorContext.getNDManager(),
-                                                                                  Flag.COLOR);
-            array = NDImageUtils.resize(array, 256);
-            return new NDList(array);
+        public NDList processInput(TranslatorContext ctx, Image input) {
+            NDArray array = input.toNDArray(ctx.getNDManager(), Flag.COLOR);
+            return new NDList(NDImageUtils.toTensor(array));
         }
 
         @Override
