@@ -1,7 +1,15 @@
 package ru.innopolis.telegram_bot.bot;
 
+import ai.djl.modality.cv.BufferedImageFactory;
+import ai.djl.modality.cv.Image;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.List;
 import java.util.stream.Collectors;
+import javax.imageio.ImageIO;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -13,6 +21,7 @@ import org.telegram.telegrambots.meta.api.objects.InputFile;
 import org.telegram.telegrambots.meta.api.objects.PhotoSize;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
+import ru.innopolis.telegram_bot.model.AnimeService;
 
 @Component
 @Slf4j
@@ -27,6 +36,11 @@ public final class Bot extends TelegramLongPollingBot {
     private static final String COMMON_MESSAGE = "Moya tvoya ne ponimat'";
     private static final String GREETINGS = "Hello %s, I can transform your selfie into 2d cartoon. Check it out. Just upload your selfie.";
 
+    private final AnimeService animeService;
+
+    public Bot(AnimeService animeService) {
+        this.animeService = animeService;
+    }
 
     @Override
     public String getBotUsername() {
@@ -42,17 +56,27 @@ public final class Bot extends TelegramLongPollingBot {
                     .collect(Collectors.toList());
             try {
                 for (String fileId : fileIds) {
-                    execute(SendPhoto.builder().chatId(chatId).photo(new InputFile(fileId)).caption(CAPTION).build());
+                    InputFile file = new InputFile(fileId);
+                    Image image = new BufferedImageFactory()
+                            .fromInputStream(file.getNewMediaStream());
+                    Image result = animeService.transform(image);
+                    ByteArrayOutputStream os = new ByteArrayOutputStream();
+                    result.save(os, "jpeg");
+                    InputStream is = new ByteArrayInputStream(os.toByteArray());
+                    execute(SendPhoto.builder().chatId(chatId).photo(new InputFile(is, "result")).caption(CAPTION)
+                                    .build());
                     log.info(update.getMessage().getChatId() + ": Photo is sent");
                 }
 
-            } catch (TelegramApiException e) {
+            } catch (TelegramApiException | IOException e) {
                 log.error(e.getMessage());
             }
         } else {
             if (update.getMessage().getText().equals("/start")) {
                 try {
-                    execute(SendMessage.builder().chatId(chatId).text(String.format(GREETINGS, update.getMessage().getFrom().getFirstName())).build());
+                    execute(SendMessage.builder().chatId(chatId)
+                                    .text(String.format(GREETINGS, update.getMessage().getFrom().getFirstName()))
+                                    .build());
                     log.info(update.getMessage().getChatId() + ": " + update.getMessage().getText());
                 } catch (TelegramApiException e) {
                     log.error(e.getMessage());
