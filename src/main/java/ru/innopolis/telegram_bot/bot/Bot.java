@@ -1,15 +1,19 @@
 package ru.innopolis.telegram_bot.bot;
 
+import ai.djl.MalformedModelException;
 import ai.djl.modality.cv.BufferedImageFactory;
 import ai.djl.modality.cv.Image;
 import java.awt.image.BufferedImage;
+import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
 import java.util.stream.Collectors;
 import javax.imageio.ImageIO;
+import javax.imageio.stream.FileImageInputStream;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -56,10 +60,14 @@ public final class Bot extends TelegramLongPollingBot {
                     .collect(Collectors.toList());
             try {
                 for (String fileId : fileIds) {
-                    InputFile file = new InputFile(fileId);
-                    Image image = new BufferedImageFactory()
-                            .fromInputStream(file.getNewMediaStream());
-                    Image result = animeService.transform(image);
+                    BufferedImage image = ImageIO.read(new File("/Users/onbehalfofme/Downloads/Mozilla_Firefox_3.5_logo_256.png"));
+                    ByteArrayOutputStream os1 = new ByteArrayOutputStream();
+                    ImageIO.write(image,"jpeg", os1);
+                    InputStream fis = new ByteArrayInputStream(os1.toByteArray());
+//                    InputFile file = new InputFile(fileId);
+                    Image imag = new BufferedImageFactory()
+                            .fromInputStream(fis);
+                    Image result = animeService.transform(imag);
                     ByteArrayOutputStream os = new ByteArrayOutputStream();
                     result.save(os, "jpeg");
                     InputStream is = new ByteArrayInputStream(os.toByteArray());
@@ -68,7 +76,7 @@ public final class Bot extends TelegramLongPollingBot {
                     log.info(update.getMessage().getChatId() + ": Photo is sent");
                 }
 
-            } catch (TelegramApiException | IOException e) {
+            } catch (TelegramApiException | IOException | MalformedModelException e) {
                 log.error(e.getMessage());
             }
         } else {
