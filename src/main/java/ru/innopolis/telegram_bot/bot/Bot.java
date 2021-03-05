@@ -4,23 +4,23 @@ import ai.djl.MalformedModelException;
 import ai.djl.modality.cv.BufferedImageFactory;
 import ai.djl.modality.cv.Image;
 import java.awt.image.BufferedImage;
-import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 import javax.imageio.ImageIO;
-import javax.imageio.stream.FileImageInputStream;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
+import org.telegram.telegrambots.meta.api.methods.GetFile;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.methods.send.SendPhoto;
+import org.telegram.telegrambots.meta.api.objects.File;
 import org.telegram.telegrambots.meta.api.objects.InputFile;
 import org.telegram.telegrambots.meta.api.objects.PhotoSize;
 import org.telegram.telegrambots.meta.api.objects.Update;
@@ -56,18 +56,18 @@ public final class Bot extends TelegramLongPollingBot {
     public void onUpdateReceived(Update update) {
         String chatId = String.valueOf(update.getMessage().getChatId());
         if (update.getMessage().hasPhoto()) {
-            List<String> fileIds = update.getMessage().getPhoto().stream().map(PhotoSize::getFileId).limit(1)
+            List<java.io.File> files = update.getMessage().getPhoto().stream().map(this::getFilePath)
+                    .map(this::downloadPhotoByFilePath).limit(1)
                     .collect(Collectors.toList());
             try {
-                for (String fileId : fileIds) {
-                    BufferedImage image = ImageIO.read(new File("/Users/onbehalfofme/Downloads/Mozilla_Firefox_3.5_logo_256.png"));
+                for (java.io.File file : files) {
+                    BufferedImage image = ImageIO.read(file);
                     ByteArrayOutputStream os1 = new ByteArrayOutputStream();
-                    ImageIO.write(image,"jpeg", os1);
+                    ImageIO.write(image, "jpeg", os1);
                     InputStream fis = new ByteArrayInputStream(os1.toByteArray());
-//                    InputFile file = new InputFile(fileId);
-                    Image imag = new BufferedImageFactory()
+                    Image im = new BufferedImageFactory()
                             .fromInputStream(fis);
-                    Image result = animeService.transform(imag);
+                    Image result = animeService.transform(im);
                     ByteArrayOutputStream os = new ByteArrayOutputStream();
                     result.save(os, "jpeg");
                     InputStream is = new ByteArrayInputStream(os.toByteArray());
@@ -105,5 +105,34 @@ public final class Bot extends TelegramLongPollingBot {
     @Override
     public String getBotToken() {
         return BOT_TOKEN;
+    }
+
+    public java.io.File downloadPhotoByFilePath(String filePath) {
+        try {
+            return downloadFile(filePath);
+        } catch (TelegramApiException e) {
+            e.printStackTrace();
+        }
+
+        return null;
+    }
+
+    public String getFilePath(PhotoSize photo) {
+        Objects.requireNonNull(photo);
+
+        if (photo.getFilePath() != null && !photo.getFilePath().isEmpty()) {
+            return photo.getFilePath();
+        } else {
+            GetFile getFileMethod = new GetFile();
+            getFileMethod.setFileId(photo.getFileId());
+            try {
+                File file = execute(getFileMethod);
+                return file.getFilePath();
+            } catch (TelegramApiException e) {
+                e.printStackTrace();
+            }
+        }
+
+        return null;
     }
 }
